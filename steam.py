@@ -35,7 +35,7 @@ def pagination(url,df):
         print(f'parsed {i +1} page from {last_page} pages' )
         time.sleep(10)
         print(df)
-    df.to_csv('steam_test.csv')
+    df.to_csv('steam_test01.csv')
     return
         
         
