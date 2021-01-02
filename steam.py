@@ -2,6 +2,9 @@ from requests_html import HTMLSession
 from bs4 import BeautifulSoup
 import time
 import pandas as pd
+import concurrent.futures
+from random import randint
+
 
 url = 'https://store.steampowered.com/games#p=0'
 
@@ -15,29 +18,39 @@ s = HTMLSession()
 df = pd.DataFrame().reset_index(drop=True)
 
 detail_list = []
+links = []
+last_page = None
 
 
-
-def pagination(url,df):
+def last_pg(url):
     r = s.get(url, headers=headers)
     r.html.render(sleep=2)
     soup = BeautifulSoup(r.html.html, 'html.parser')
 
     #page pagination
-    last_page = 10 #int(soup.find('div', class_='paged_items_paging').find('span', {'id':'NewReleases_total'}).text)
+    last_page = 15 #int(soup.find('div', class_='paged_items_paging').find('span', {'id':'NewReleases_total'}).text)
     print(f'pages to parse {last_page}')
+    return last_page
 
+
+def pagination(last_page):
     for i in range(0,last_page):
         url = f'https://store.steampowered.com/games#p={i}'
-        results = parse(url)
-        df = df.append(results)
-        print('sleep for 20 seconds before parse next page ...')
-        print(f'parsed {i +1} page from {last_page} pages' )
-        time.sleep(10)
-        print(df)
-    df.to_csv('steam_test01.csv')
-    return
+        links.append(url)
+
+    print(len(links))
+    print('links created')
+    #print(links)
+    return links
+
+
         
+def save_data(list,df):
+    df = df.append(list)
+    df = df.sort_values(by='savings', ascending = False)
+    df.to_csv('steam_test.csv')
+    return
+
         
 
 def parse(url):
@@ -61,17 +74,22 @@ def parse(url):
             discount = ''
 
         try:
-            final_price = game.find('div', {'class':'discount_final_price'}).text.strip()
+            final_price = float(game.find('div', {'class':'discount_final_price'}).text.strip().replace('£',''))
         except:
             final_price = ''
         
         try:
-            original_price = game.find('div', {'class':'discount_original_price'}).text.strip() 
+            original_price = float(game.find('div', {'class':'discount_original_price'}).text.strip().replace('£','')) 
         except:
             original_price = ''
+        try:
+            savings = round(original_price - final_price,2)
+        except:
+            savings = 0
         link = game['href']
         dict = {
             'title': title,
+            'savings': savings,
             'discount': discount,
             'final price': final_price,
             'original price': original_price,
@@ -80,13 +98,29 @@ def parse(url):
         detail_list.append(dict)
     
     print(len(detail_list))
+    print('parse in progress...')
 
     return detail_list
 
     
-   
+def main():
+    last_page = last_pg(url)
+    links = pagination(last_page)
+    """ with concurrent.futures.ThreadPoolExecutor() as executor:
+        executor.map(parse, links) """
+
+    for link in links:
+        ransleep = randint(0,3)
+        parse(link)
+        last_page = last_page -1
+        print(f'pages to parse: {last_page}')
+        print(f'sleep for {ransleep} secods')
+        time.sleep(ransleep)
+    
+    save_data(detail_list,df)
+    print('df saved')
 
     
 
 
-pagination(url,df)
+main()
